@@ -3,36 +3,36 @@
 #
 # by Zsban Ambrus <ambrus@math.bme.hu>
 #
-# WARNING: 
+# WARNING:
 # Run jeval.rb to your own risk only, as the secure mode of the J interpreter
-# might not be as secure as you think.  Also don't violate any rules set 
+# might not be as secure as you think.  Also don't violate any rules set
 # by the irc network.
 #
 # NOTE:
-# User configuration is now in a separate yaml file whose name you pass on 
-# command line to jeval.rb.  
+# User configuration is now in a separate yaml file whose name you pass on
+# command line to jeval.rb.
 #
 # TODO:
 #  - document everything
 #  - make sessions the default command
 #  - make private messages reply in notices
 #  - change the syntax for private messages so it evaluates without any prompt
-#  - work around the invalid proverb evoke bug somehow, 
+#  - work around the invalid proverb evoke bug somehow,
 #       eg. change to another locale when restoring session (that would be a partial fix only)
 #
 #
 
 
-require "socket"; 
+require "socket";
 require "thread";
-require "net/http"; 
+require "net/http";
 require "yaml";
 require "enumerator";
 
 
 begin # config
 
-	$*.empty? and 
+	$*.empty? and
 		fail "please use the name of config file as first command argument to jeval.rb";
 	$CONF_DATA = Hash[];
 	c = YAML.load_file($*[0]);
@@ -40,7 +40,7 @@ begin # config
 	c.each do |k, v|
 		$CONF_DATA[k.downcase] = v;
 	end;
-	module Kernel; 
+	module Kernel;
 		def conf key, *default;
 			k = key.to_s.downcase;
 			$CONF_DATA.fetch(k) do
@@ -52,7 +52,7 @@ begin # config
 					fail %Q(mandatory option "#{k}" missing from config file);
 				end;
 			end;
-		end; 
+		end;
 	end;
 	
 end;
@@ -73,7 +73,7 @@ begin
 		end;
 	end;
 	Thread::abort_on_exception = 1;
-	"1.8.7" == RUBY_VERSION or fail "wrong ruby version, expected 1.8.7, running under #{RUBY_VERSION}";
+	#"1.8.7" == RUBY_VERSION or fail "wrong ruby version, expected 1.8.7, running under #{RUBY_VERSION}";
 	trap "SIGPIPE", "SIG_IGN";
 	Thread.new do conf(:master_timeout, 61).times do sleep 30*24*60*60; fail "master timeout"; end; end;
 end;
@@ -81,12 +81,13 @@ end;
 
 # simple subs
 begin;
-	class String; 
+	class String;
       # escape everything but \x03 (which allows using color on IRC)
 		def blankctl!; tr!("\x00-\x02\x04-\x1f\x7f", " "); self; end;
-		def blankctl; dup.blankctl!; end; 
-		def escapectl; gsub(/[\x00-\x1f~\x7f-\x9f]/) { "~%02x" % $&[0] }; end;
-		end;
+		def blankctl; dup.blankctl!; end;
+#		def escapectl; gsub(/[\x00-\x1f~\x7f-\x9f]/) { "~%02x" % $&[0] }; end;
+ 		def escapectl; gsub(Regexp.new('[\x00-\x1f~\x7f-\x9f]', nil, 'n')) { "~%02x" % $&[0].ord }; end;
+	end;
 	module Kernel; def sleep_forever; loop do sleep 24*60*60; end; end; end;
 end;
 
@@ -108,11 +109,11 @@ begin
 		end;
 	end;
 	puts "! jeval starting " + Time.now.to_s;
-	Thread.new do 
-		loop do 
-			sleep 300; 
+	Thread.new do
+		loop do
+			sleep 300;
 			puts "@ " + Time.now.strftime("%F %T");
-		end; 
+		end;
 	end;
 end;
 
@@ -383,12 +384,12 @@ class JSpawn;
 			@user_thread.raise Abort;
 	end;
 
-	def jkill; 
+	def jkill;
 		@jpid or return;
 		begin Process.kill "TERM", @jpid; rescue Errno::ESRCH; end;
-		sleep 2; 
+		sleep 2;
 		begin Process.kill "KILL", @jpid; rescue Errno::ESRCH; end;
-	end; 
+	end;
 
 	def do_spawn;
 		lsock, gsock, jep_arg = (), ();
@@ -397,9 +398,9 @@ class JSpawn;
 			@jconn, gsock = Socket.socketpair(Socket::PF_LOCAL, Socket::SOCK_STREAM, 0);
 			jep_arg = gsock.fileno.to_s;
 		else
-			lsock = Socket.new(Socket::PF_INET, Socket::SOCK_STREAM, 0); 
-			lsock.listen 1; 
-			jep_arg = Socket.unpack_sockaddr_in(lsock.getsockname)[0].to_s; 
+			lsock = Socket.new(Socket::PF_INET, Socket::SOCK_STREAM, 0);
+			lsock.listen 1;
+			jep_arg = Socket.unpack_sockaddr_in(lsock.getsockname)[0].to_s;
 		end
 		@jpid = fork do
 			if jfd;
@@ -422,52 +423,53 @@ class JSpawn;
 					warn "got EINVAL from setrlimit RLIMIT_AS in parent process, this can mean RLIMIT_AS is unimplemented or that we tried to increase memory limit";
 				end;
 			end;
-			exec(*conf(:jep_command) + [jep_arg]); 
-		end; 
-		Thread.new do 
+			exec(*conf(:jep_command) + [jep_arg]);
+		end;
+		Thread.new do
 			sleep conf(:jspawn_timeout, 9);
 			jabort "|timeout";
-		end; 
+		end;
 		if jfd;
 			gsock.close;
 		else
-			@jconn = lsock.accept[0]; 
+			@jconn = lsock.accept[0];
 			lsock.close;
 		end;
-		Waiter.bkg_wait @jpid do 
+		Waiter.bkg_wait @jpid do
 			jabort "|abort4";
 		end;
 		sleep 0.1;
 	end;
 
 	(
-		(*), CMDDO, CMDDOZ, CMDIN, CMDINZ, CMDWD, CMDWDZ, CMDOUT, 
+		(*), CMDDO, CMDDOZ, CMDIN, CMDINZ, CMDWD, CMDWDZ, CMDOUT,
 		CMDBRK, CMDGET, CMDGETZ, CMDSETN, CMDSET, CMDSETZ, CMDED, CMDFL,
 		CMDEXIT,
 	) = (0..16).to_a;
 
-	def jwrite c, t = 0, d = ""; 
+	def jwrite c, t = 0, d = "";
 		begin
-			@jconn.write [c, t, d.length, d].pack("Cx3NNA*"); 
-		rescue Errno::EPIPE; 
+			@jconn.write [c, t, d.length, d].pack("Cx3NNA*");
+		rescue Errno::EPIPE;
 			jabort "|abort2";
 		end;
-	end; 
+	end;
 	
 	def pumpread;
 		loop do
 			b = @jconn.read(12) or
 				return @inputqueue.push([:err, "|abort"]);
-			c, t, l = b.unpack("Cx3NN"); 
+			c, t, l = b.unpack("Cx3NN");
 			d = @jconn.read(l) or
 				return @inputqueue.push([:err, "|abort3"]);
 			@inputqueue.push [c, t, d];
 		end;
 	end;
 	
-		def jwait expect = CMDDOZ;
+	def jwait expect = CMDDOZ;
 		loop do
 			c, t, d = @inputqueue.shift;
+#			puts "cmd: c:#{c} t:#{t} d:'#{d.escapectl}'"
 			case c;
 				when CMDDOZ;
 					if CMDDOZ == expect
@@ -486,7 +488,7 @@ class JSpawn;
 				when CMDEXIT;
 					# noop
 				when CMDIN;
-					CMDIN == expect or 
+					CMDIN == expect or
 						jabort "|abort11";
 					return CMDINZ;
 				when CMDWD;
@@ -507,8 +509,8 @@ class JSpawn;
 	def do_pretalk;
 		@output = "";
 		@inputqueue = Queue.new;
-		Thread.new do 
-			pumpread; 
+		Thread.new do
+			pumpread;
 		end;
 		jwrite CMDDO, 0, JSPAWN_INIT0;
 		jwait;
@@ -542,9 +544,9 @@ class JSpawn;
 		want = CMDDO;
 		@cmdarr.each do |cmd|
 			@output = "";
-			jwrite want, 0, cmd; 
+			jwrite want, 0, cmd;
 			want = jwait CMDIN;
-			@output.each do |l| 
+			@output.split("\n").each do |l|
 				l.chomp!;
 				outcnt < NUMOUTLINES and
 					@outproc[l.blankctl![0, conf(:jspawn_cols, 388)]];
@@ -710,7 +712,8 @@ Irc.instance_eval do
 		end;
 	end;
 	def ircprivmsg dest0, text;
-		dest0 =~ /\A(["-~\xa0-\xff]{1,512})/ or fail "invalid destination";
+	#	dest0 =~ /\A(["-~\xa0-\xff]{1,512})/ or fail "invalid destination";
+		dest0 =~ Regexp.new('\A(["-~\xa0-\xff]{1,512})', nil, 'n') or fail "invalid destination";
 		dest = $1;
 		text.blankctl![0, 512];
 		text.empty? and text += " ";
@@ -719,8 +722,8 @@ Irc.instance_eval do
 
 	NICK_QREGEXP = Regexp.new %q/(?i)\A/ + IRCNICK + %q/(?!\w)/;
 	SHORT_REGEXP = Regexp.new \
-		%q/\A(/ + 
-		Regexp.quote(conf(:irc_shortprefix, "]")) + 
+		%q/\A(/ +
+		Regexp.quote(conf(:irc_shortprefix, "]")) +
 		%q/[\.\:]*)/ +
 		(if conf(:irc_shortspace, true); %q/\s/ else %q// end) +
 		%q/(.*)/;
@@ -757,7 +760,8 @@ Irc.instance_eval do
 		channel ||= "_priv";
 		user =~ /\,/ and fail "nickname with comma";
 		channel =~ /\,/ and fail "channel name with comma";
-		(skey ||= "") =~ /\A(?:([\!-\+\--\~]*)\,)?([\!-\+\--\~\xa0-\xff]{1,64})?\z/ or
+	#	(skey ||= "") =~ /\A(?:([\!-\+\--\~]*)\,)?([\!-\+\--\~\xa0-\xff]{1,64})?\z/ or
+		(skey ||= "") =~ Regexp.new('\A(?:([\!-\+\--\~]*)\,)?([\!-\+\--\~\xa0-\xff]{1,64})?\z', nil, 'n') or
 			fail SessionPermError;
 		sessionsuffix = $2 || channel;
 		sessionowner = (
@@ -809,7 +813,7 @@ Irc.instance_eval do
 		if !cmdname;
 			cmdname = "session";
 			punctuation =~ /\.\.\z/ and
-				cmdname = "hold"; 
+				cmdname = "hold";
 			#punctuation =~ /\:\:\z/ and
 				#cmdname = "session";
 		end;
@@ -823,6 +827,7 @@ Irc.instance_eval do
 				conf(:jspawn_sess, false) or return;
 				runj args, replytarget, (if chan; origin + ": " else "" end), [origin.to_cpstring, (if chan; chan.to_cpstring else nil end)], [origin, chan];
 			when "list", "ls", "dir";
+				admin or return;
 				botignore and return;
 				s = "";
 				JSpawn.listsessions do |key|
@@ -987,7 +992,7 @@ Irc.instance_eval do
 	end;
 	def gotchan line, origin, chan;
 		if line =~ NICK_QREGEXP;
-			if $' =~ /(?ix) 
+			if $' =~ /(?ix)
 				\A\s* (?:
 					([\:\[\]\>\=\)][\.\:]*) (?: \s* ([a-z][a-z0-9_]+)\: )? |
 					(?:[\,\;]\s*)? ([a-z][a-z0-9_]+) \s* ([\:\[\]\>\=\)][\.\:]*)
@@ -1103,21 +1108,21 @@ Irc.instance_eval do
 	puts "! about to connect to tcp #{irchost}/#{ircport} (#{irchostn}/#{ircportn})";
 	@ircconn.connect ircsockaddr;
 	puts "! connection succeeded";
-	Thread.new do 
-		while l = @ircconn.gets; 
+	Thread.new do
+		while l = @ircconn.gets;
 			l.gsub!(/[\r\n]*\z/) { "" };
 			puts "< " + l.escapectl;
 			l =~ /\S/ or next;
-			l =~ /\A(?:\:([^ ]*)\ +)?(.*?)(?:\ \:(.*))?\z/ or 
+			l =~ /\A(?:\:([^ ]*)\ +)?(.*?)(?:\ \:(.*))?\z/ or
 				fail "error parsing message from irc server";
 			origin, mostargs, trailingarg = $1, $2, $3;
 			command, *args = mostargs.scan(/[^ ]+/);
-			command =~ /\A\w+\z/ or 
+			command =~ /\A\w+\z/ or
 				fail "error parsing2 message from irc server";
 			trailingarg and args << trailingarg;
 			ircgot(origin, command, args, l);
-		end; 
-		fail "irc server disconnected"; 
+		end;
+		fail "irc server disconnected";
 	end;
 	IRC_CREDITDELAY = conf(:irc_creditdelay, 4);
 	IRC_CHARPERCREDIT2 = conf(:irc_charpercredit2, 100);
@@ -1139,14 +1144,14 @@ Irc.instance_eval do
 	ircpass = File.open(conf(:irc_nickservpass_file)).readline.chomp;
 	irc_username = conf(:irc_username, `whoami`.chomp!);
 	irc_logincmd = [
-		"PASS 0", "NICK #{IRCNICK}", "USER #{irc_username} 0 0 :#{conf(:irc_realname, "jevalbot")}",
+		"PASS #{ircpass}", "NICK #{IRCNICK}", "USER #{irc_username} 0 0 :#{conf(:irc_realname, "jevalbot")}",
 	];
 	if !conf(:irc_doublelogin, false);
           ircputs(*irc_logincmd);
 	end;
 	sleep 2
-        ircputs "PRIVMSG NickServ :identify #{ircpass}"
-        sleep 5
+#        ircputs "PRIVMSG NickServ :identify #{ircpass}"
+#        sleep 5
 	IRCCHAN.each do |chan, ent|
 		IRCCHAN[chan][:join] and
 			ircputs "JOIN :" + chan.to_s.blankctl;
@@ -1155,5 +1160,5 @@ Irc.instance_eval do
 	
 end;
 
-
+# vim: set noet:
 __END__
