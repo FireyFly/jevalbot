@@ -927,7 +927,7 @@ Irc.instance_eval do
 			when "ping", "echo";
 				reply["pong: " + args];
 			when "source";
-				reply["jevalbot source is http://www.math.bme.hu/~ambrus/pu/jevalbot.tgz"];
+				reply["jevalbot source is https://github.com/FireyFly/jevalbot (originally http://www.math.bme.hu/~ambrus/pu/jevalbot.tgz)"];
 			when "join";
 				admin or return;
 				args =~ /(\S+)/ or return;
